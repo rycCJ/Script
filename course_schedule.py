@@ -163,7 +163,7 @@ def main():
 
     ics_content.append("END:VCALENDAR")
 
-    file_name = 'first_incorrect_schedule.ics'
+    file_name = 'fall_2025_course_schedule.ics'
     with open(file_name, 'w', encoding='utf-8') as f:
         f.write("\n".join(ics_content))
 
