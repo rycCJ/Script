@@ -1,5 +1,3 @@
-# 这是初版代码，基于错误的PDF文件，课程安排不正确
-
 import datetime
 import uuid
 
