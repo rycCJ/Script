@@ -8,7 +8,7 @@ import pandas as pd # 引入 pandas 库用于数据保存，如果未安装请�
 plt.rcParams['font.sans-serif'] = ['SimHei'] # 指定默认字体为黑体
 plt.rcParams['axes.unicode_minus'] = False   # 解决负号显示问题
 # --- 协议常量定义 ---
-ANGLE_SCALE = 256 # 协议中定义的角度比例因子
+ANGLE_SCALE = 64 # 协议中定义的角度比例因子
 VELOCITY_SCALE = 8
 PI = math.pi
 FRAME_HEAD_VALUE = 0xAA55 # 帧头的期望值 (小端序为 0x55AA)
@@ -57,7 +57,7 @@ def parse_point_format_0(data_buffer, ext_info):
 
     try:
         # '<HBBI' 表示：小端序，一个无符号短整型 (Idx1, 2字节), 两个无符号字符 (Idx2, Idx3, 各1字节), 一个无符号整型 (PowABS, 4字节)。总计 2+1+1+4 = 8 字节。
-        idx1, idx2, idx3, pow_abs_raw = struct.unpack('<HBBI', data_buffer[:8])
+        idx1, idx2, idx3, pow_abs_raw = struct.unpack('<HBbI', data_buffer[:8])
     except struct.error as e:
         print(f"解析格式 0 点数据时发生错误: {e}。缓冲区长度: {len(data_buffer)}。")
         return None
@@ -82,11 +82,11 @@ def parse_point_format_0(data_buffer, ext_info):
     # 限制 asin 函数的输入范围在 [-1, 1] 之间，以避免数学域错误。
 
     if idx3 < (ANGLE_SCALE / 2):
-        asin_arg = idx3/(ANGLE_SCALE/2)
+        asin_arg =float(idx3/(ANGLE_SCALE/2))
         asin_arg = max(-1, min(1, asin_arg))
         point_data['angle'] = math.degrees(math.asin(asin_arg))
     else:
-        asin_arg = (idx3-ANGLE_SCALE)/(ANGLE_SCALE/2)
+        asin_arg = float((idx3-ANGLE_SCALE)/(ANGLE_SCALE/2))
         asin_arg = max(-1, min(1, asin_arg))
         point_data['angle'] = math.degrees(math.asin(asin_arg))
     # asin_arg = idx3 / (ANGLE_SCALE / 2)
@@ -604,8 +604,8 @@ def main(txt_file_path,output_csv_path):
 if __name__ == "__main__":
 
         # 示例路径，请根据您的实际情况修改！
-    your_actual_txt_file_path = 'D:/Data/Origin/-30°_1m.txt' 
-    main(your_actual_txt_file_path,"D:/Data/CSV/-30°_1m.csv") # 运行程序，使用虚拟数据文件进行测试
+    your_actual_txt_file_path = 'D:/Data/Origin/jiaofan_15°_1.5m_1.txt' 
+    main(your_actual_txt_file_path,"D:/Data/CSV/jiaofan_15°_1.5m_1.csv") # 运行程序，使用虚拟数据文件进行测试
     # --- 【重要修改处 1】 ---
     # 请将这里的 'your_data.txt' 替换为您的实际 TXT 文件路径。
     # 例如：
