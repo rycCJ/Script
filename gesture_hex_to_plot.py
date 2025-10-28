@@ -5,9 +5,10 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import binascii # 用于十六进制字符串到字节串的转换
 import pandas as pd # 引入 pandas 库用于数据保存，如果未安装请先 pip install pandas
-
+plt.rcParams['font.sans-serif'] = ['SimHei'] # 指定默认字体为黑体
+plt.rcParams['axes.unicode_minus'] = False   # 解决负号显示问题
 # --- 协议常量定义 ---
-ANGLE_SCALE = 64 # 协议中定义的角度比例因子
+ANGLE_SCALE = 256 # 协议中定义的角度比例因子
 VELOCITY_SCALE = 8
 PI = math.pi
 FRAME_HEAD_VALUE = 0xAA55 # 帧头的期望值 (小端序为 0x55AA)
@@ -60,7 +61,7 @@ def parse_point_format_0(data_buffer, ext_info):
     except struct.error as e:
         print(f"解析格式 0 点数据时发生错误: {e}。缓冲区长度: {len(data_buffer)}。")
         return None
-    
+
     point_data = {}
     
     # 安全获取分辨率值，将毫米转换为米，毫米/秒转换为米/秒。如果未找到，默认为 1。
@@ -79,17 +80,28 @@ def parse_point_format_0(data_buffer, ext_info):
 
     # 角度计算 (Angle Calculation - 度)
     # 限制 asin 函数的输入范围在 [-1, 1] 之间，以避免数学域错误。
-    asin_arg = idx3 / (ANGLE_SCALE / 2)
-    asin_arg = max(-1, min(1, asin_arg)) # 钳制到 [-1, 1]
-    point_data['angle'] = math.degrees(math.asin(asin_arg))
+
+    if idx3 < (ANGLE_SCALE / 2):
+        asin_arg = idx3/(ANGLE_SCALE/2)
+        asin_arg = max(-1, min(1, asin_arg))
+        point_data['angle'] = math.degrees(math.asin(asin_arg))
+    else:
+        asin_arg = (idx3-ANGLE_SCALE)/(ANGLE_SCALE/2)
+        asin_arg = max(-1, min(1, asin_arg))
+        point_data['angle'] = math.degrees(math.asin(asin_arg))
+    # asin_arg = idx3 / (ANGLE_SCALE / 2)
+    # asin_arg = max(-1, min(1, asin_arg)) # 钳制到 [-1, 1]
+    # point_data['angle'] = math.degrees(math.asin(asin_arg))
     
     # PowABS: U(32,16) - 高 16 位为整数部分，低 16 位为小数部分 (2^(-16))
     #point_data['power_abs'] = float(pow_abs_raw) / (2**16)
+
     point_data['power_abs'] = pow_abs_raw
     # 转换为笛卡尔坐标 (假设距离是径向距离，角度是方位角，Z 轴为 0 以简化)
     # 这是一种常见的简化，适用于单角度雷达且未明确提供仰角的情况。
     x_val = point_data['range'] * math.cos(math.radians(point_data['angle']))
     y_val = point_data['range'] * math.sin(math.radians(point_data['angle']))
+
     z_val = 0.0 # 默认 Z 轴为 0.0，因为单个角度通常意味着在 2D 平面上的投影。
     
     point_data['x'] = x_val
@@ -343,6 +355,7 @@ def visualize_points(all_points_data, title="点云数据可视化"):
     ax.set_ylabel('Y (cm)')
     ax.set_zlabel('Z (cm)')
     ax.set_title(title)
+    ax.view_init(elev=90, azim=0)
     ax.grid(True)
     
     # 自动调整坐标轴的限制，使其适应所有数据点
@@ -354,6 +367,61 @@ def visualize_points(all_points_data, title="点云数据可视化"):
         # 设置等比例尺，防止图形变形
         ax.set_box_aspect([1,1,1]) # This makes axis lengths equal
 
+    plt.show()
+
+# --- 新增：逐帧数据变化的可视化函数 ---
+def visualize_frame_changes(frame_by_frame_data):
+    """
+    绘制每一帧的平均距离和平均角度随帧数的变化。
+    :param frame_by_frame_data: 一个列表，列表中的每个元素都是代表一帧的点数据列表。
+                                例如: [[point1_frame1, point2_frame1], [point1_frame2, ...]]
+    """
+    if not frame_by_frame_data:
+        print("没有逐帧数据可供可视化。")
+        return
+
+    frame_numbers = []
+    avg_ranges = []
+    avg_angles = []
+
+    # 遍历每一帧的数据
+    for i, frame_points in enumerate(frame_by_frame_data):
+        # 确保当前帧有数据点
+        if not frame_points:
+            continue
+
+        frame_numbers.append(i + 1) # 帧数从 1 开始
+
+        # 计算当前帧的平均距离
+        current_frame_ranges = [p.get('range', 0) for p in frame_points]
+        avg_range = sum(current_frame_ranges) / len(current_frame_ranges)
+        avg_ranges.append(avg_range)
+
+        # 计算当前帧的平均角度
+        current_frame_angles = [p.get('angle', 0) for p in frame_points]
+        avg_angle = sum(current_frame_angles) / len(current_frame_angles)
+        avg_angles.append(avg_angle)
+
+    # 开始绘图
+    # 创建一个包含两个子图的图窗
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+    # sharex=True 让两个子图共享同一个 X 轴（帧数）
+
+    # 绘制第一个子图：平均距离 vs. 帧数
+    ax1.plot(frame_numbers, avg_ranges, marker='o', linestyle='-', color='b')
+    ax1.set_ylabel('平均距离 (cm)')
+    ax1.set_title('每一帧的平均距离和角度变化')
+    ax1.grid(True)
+
+    # 绘制第二个子图：平均角度 vs. 帧数
+    ax2.plot(frame_numbers, avg_angles, marker='s', linestyle='--', color='r')
+    ax2.set_xlabel('帧数')
+    ax2.set_ylabel('平均角度 (度)')
+    ax2.grid(True)
+
+    # 调整布局以防止标签重叠
+    plt.tight_layout()
+    # 显示图表
     plt.show()
 
 # --- 数据保存函数 ---
@@ -462,7 +530,7 @@ def main(txt_file_path,output_csv_path):
     :param output_csv_path: 输出 CSV 文件的路径。
     """
     all_parsed_points = []
-    
+    all_frames_data = [] 
     try:
         # 打开 TXT 文件并读取内容。
         # .replace(' ', '').replace('\n', '') 是为了去除文件中的所有空格和换行符，
@@ -512,7 +580,10 @@ def main(txt_file_path,output_csv_path):
             # 成功解析了一个帧
             frame_count += 1
             print(f"成功解析第 {frame_count} 帧 (起始偏移量: {start_index})。总长度: {frame_total_length} 字节。包含 {len(points_in_frame)} 个点。")
-            all_parsed_points.extend(points_in_frame)
+                        # === 2. 修改这里：同时填充两个列表 ===
+            all_parsed_points.extend(points_in_frame) # 继续保留，用于3D可视化和CSV保存
+            all_frames_data.append(points_in_frame) # 新增，保存当前帧的数据
+
             current_offset = start_index + frame_total_length # 更新偏移量到当前帧的末尾
             
         else:
@@ -526,9 +597,15 @@ def main(txt_file_path,output_csv_path):
     # === 新增：保存解析后的数据到 CSV 文件 ===
     save_points_to_csv(all_parsed_points, output_csv_path)
     # 调用可视化函数
-    visualize_points(all_parsed_points, title="点云数据可视化")
+    # visualize_points(all_parsed_points, title="点云数据可视化")
+    # === 调用新加的函数来显示变化图 ===
+    visualize_frame_changes(all_frames_data)
                                                                                                                                                                                                                                                      
 if __name__ == "__main__":
+
+        # 示例路径，请根据您的实际情况修改！
+    your_actual_txt_file_path = 'D:/Data/Origin/-30°_1m.txt' 
+    main(your_actual_txt_file_path,"D:/Data/CSV/-30°_1m.csv") # 运行程序，使用虚拟数据文件进行测试
     # --- 【重要修改处 1】 ---
     # 请将这里的 'your_data.txt' 替换为您的实际 TXT 文件路径。
     # 例如：
@@ -538,8 +615,6 @@ if __name__ == "__main__":
     # 请确保路径中的反斜杠 (\\) 使用双反斜杠 (\\) 或者使用正斜杠 (/)，
     # 或者在字符串前加 r (原始字符串)，例如 r'C:\Users\...'
     
-    # 示例路径，请根据您的实际情况修改！
-    your_actual_txt_file_path = 'D:/Data/Origin/littlewater_1.txt' 
 
     # --- 【可选修改处 2】 ---
     # 以下代码块用于生成一个虚拟的 TXT 文件，方便您测试代码。
@@ -583,11 +658,3 @@ if __name__ == "__main__":
     # with open(dummy_file_name, 'w', encoding='utf-8') as f:
     #     f.write(test_data_for_dummy_file)
     # print(f"已创建虚拟数据文件 '{dummy_file_name}' 用于测试。")
-    
-    # # 如果您使用自己的文件，请将上面两行关于 dummy_file_name 的代码注释掉，
-    # # 并使用您的 `your_actual_txt_file_path`。
-    
-    # # 例如，如果您要运行自己的文件，请取消注释下一行并修改路径：
-    # # main('C:/Users/YourUser/Documents/real_point_cloud_data.txt')
-    
-    main(your_actual_txt_file_path,"D:/Data/CSV/littlewater_1.csv") # 运行程序，使用虚拟数据文件进行测试
