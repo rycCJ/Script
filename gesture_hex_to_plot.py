@@ -370,8 +370,9 @@ def visualize_points(all_points_data, title="点云数据可视化"):
 
     plt.show()
 
-# --- 新增：逐帧数据变化的可视化函数_根据一帧中跟功率最大的点 ---
+# --- 逐帧数据变化的可视化函数_根据一帧中功率最大的点 ---
 def visualize_frame_changes_absmax(frame_by_frame_data):
+
     """
     绘制每一帧的平均距离和平均角度随帧数的变化。
     :param frame_by_frame_data: 一个列表，列表中的每个元素都是代表一帧的点数据列表。
@@ -384,6 +385,8 @@ def visualize_frame_changes_absmax(frame_by_frame_data):
     frame_numbers = []
     ranges_of_max_abs = []  # 存储abs最大值对应的range
     angles_of_max_abs = []  # 存储abs最大值对应的angle  
+    velocity_of_max_abs = []  # 存储abs最大值对应的angle  
+    power_of_max_abs = []
     # avg_ranges = []  #存储距离均值
     # avg_angles = []  #存储角度均值
 
@@ -400,36 +403,52 @@ def visualize_frame_changes_absmax(frame_by_frame_data):
         point_with_max_abs = max(frame_points, key=lambda p: p.get('power_abs', 0))
 
         # 2. 从找到的这个点中提取 range 和 angle
-        target_range = point_with_max_abs.get('range', 0)
-        target_angle = point_with_max_abs.get('angle', 0)
-        
-        # 3. 将结果存入列表
-        frame_numbers.append(i + 1)  # 帧数从 1 开始
-        ranges_of_max_abs.append(target_range)
-        angles_of_max_abs.append(target_angle)
-
+        target_velocity = point_with_max_abs.get('velocity',0)
+        if(target_velocity<500):
+            target_range = point_with_max_abs.get('range', 0)
+            target_angle = point_with_max_abs.get('angle', 0)
+            target_power = point_with_max_abs.get('power_abs',0)
+            # 3. 将结果存入列表
+            frame_numbers.append(i + 1)  # 帧数从 1 开始
+            ranges_of_max_abs.append(target_range)
+            angles_of_max_abs.append(target_angle)
+            velocity_of_max_abs.append(target_velocity)
+            power_of_max_abs.append(target_power)
     
     # 开始绘图
     # 创建一个包含两个子图的图窗
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+    fig, ((ax1, ax2),(ax3,ax4)) = plt.subplots(2, 2, figsize=(12, 10), sharex=True)
     # sharex=True 让两个子图共享同一个 X 轴（帧数）
 
-    # 绘制第一个子图：平均距离 vs. 帧数
+    # 绘制第一个子图：距离 vs. 帧数
     ax1.plot(frame_numbers, ranges_of_max_abs, marker='o', linestyle='-', color='b')
     ax1.set_ylabel('距离 (cm)')
     ax1.set_title('每一帧的平均距离和角度变化')
     ax1.grid(True)
 
-    # 绘制第二个子图：平均角度 vs. 帧数
+    # 绘制第二个子图：角度 vs. 帧数
     ax2.plot(frame_numbers, angles_of_max_abs, marker='s', linestyle='--', color='r')
     ax2.set_xlabel('帧数')
     ax2.set_ylabel('角度 (度)')
     ax2.grid(True)
 
+    # 绘制第三个子图：速度 vs. 帧数
+    ax3.plot(frame_numbers, velocity_of_max_abs, marker='s', linestyle='--', color='g')
+    ax3.set_xlabel('帧数')
+    ax3.set_ylabel('速度（cm/s）')
+    ax3.grid(True)
+
+    # 绘制第四个子图：最大能量 vs. 帧数
+    ax4.plot(frame_numbers, power_of_max_abs, marker='s', linestyle='--', color = 'purple')
+    ax4.set_xlabel('点数')
+    ax4.set_ylabel('功率')
+    ax4.grid(True)
+
     # 调整布局以防止标签重叠
     plt.tight_layout()
     # 显示图表
     plt.show()
+# --- 拿出所有点，排除离谱速度的点---
 def visualize_frame_changes(frame_by_frame_data):
     if not frame_by_frame_data:
         print("没有逐帧数据可供可视化。")
@@ -446,32 +465,47 @@ def visualize_frame_changes(frame_by_frame_data):
 
         # 遍历当前帧中的每一个数据点
         for point in frame_points:
-            # 安全地获取 range 和 angle，如果不存在则默认为0
-            target_range = point.get('range', 0)
-            target_angle = point.get('angle', 0)
             target_velocity = point.get('velocity',0)
-            all_points_frame_numbers.append(frame_num)
-            all_range_coords.append(target_range)
-            all_angle_coords.append(target_angle)
-            frame_num += 1
+            if(target_velocity<500):
+                # 安全地获取 range 和 angle，如果不存在则默认为0
+                target_range = point.get('range', 0)
+                target_angle = point.get('angle', 0)
+                target_power = point.get('power_abs',0)
+                all_points_frame_numbers.append(frame_num)
+                all_range_coords.append(target_range)
+                all_angle_coords.append(target_angle)
+                all_velocity_coords.append(target_velocity)
+                all_power_coords.append(target_power)
+                frame_num += 1
               
     # 开始绘图
     # 创建一个包含两个子图的图窗
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+    fig, ((ax1,ax2),(ax3,ax4)) = plt.subplots(2, 2, figsize=(12, 10), sharex=True)
     # sharex=True 让两个子图共享同一个 X 轴（帧数）
 
-    # 绘制第一个子图：平均距离 vs. 点数
+    # 绘制第一个子图：距离 vs. 点数
     ax1.plot(all_points_frame_numbers, all_range_coords,marker='o', alpha=0.6, color='b')
     ax1.set_ylabel('距离 (cm)')
     ax1.set_title('每一帧的平均距离和角度变化')
     ax1.grid(True)
 
-    # 绘制第二个子图：平均角度 vs. 帧数
+    # 绘制第二个子图：角度 vs. 点数
     ax2.plot(all_points_frame_numbers, all_angle_coords, marker='o',  alpha=0.6, color='r')
-    ax2.set_xlabel('帧数')
+    ax2.set_xlabel('点数')
     ax2.set_ylabel('角度 (度)')
     ax2.grid(True)
 
+    # 绘制第三个子图：速度 vs. 点数
+    ax3.plot(all_points_frame_numbers, all_velocity_coords, marker='o',  alpha=0.6, color='g')
+    ax3.set_xlabel('点数')
+    ax3.set_ylabel('速度（cm/s）')
+    ax3.grid(True)
+
+    # 绘制第四个子图：功率 vs. 点数
+    ax4.plot(all_points_frame_numbers, all_power_coords, marker='o',  alpha=0.6, color='purple')
+    ax4.set_xlabel('点数')
+    ax4.set_ylabel('功率')
+    ax4.grid(True)
     # 调整布局以防止标签重叠
     plt.tight_layout()
     # 显示图表
@@ -656,8 +690,8 @@ def main(txt_file_path,output_csv_path):
 if __name__ == "__main__":
 
         # 示例路径，请根据您的实际情况修改！
-    your_actual_txt_file_path = 'D:/Data/Origin/wave0_10.txt' 
-    main(your_actual_txt_file_path,"D:/Data/CSV/wave0_10.csv") # 运行程序，使用虚拟数据文件进行测试
+    your_actual_txt_file_path = 'D:/Data/Origin/30°_1m.txt' 
+    main(your_actual_txt_file_path,"D:/Data/CSV/30°_1m.csv") # 运行程序，使用虚拟数据文件进行测试
     # --- 【重要修改处 1】 ---
     # 请将这里的 'your_data.txt' 替换为您的实际 TXT 文件路径。
     # 例如：
