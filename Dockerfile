@@ -16,10 +16,10 @@ WORKDIR /app
 
 # [关键步骤1] 将 requirements.txt 文件从主机复制到镜像的 /app 目录中
 # 注意：这个 COPY 指令必须在 RUN pip install 之前
-COPY requirements.txt .
+# COPY requirements.txt .
 
 # [关键步骤2] 读取 requirements.txt 文件，安装所有Python库
-RUN pip install -r requirements.txt
+# RUN pip install -r requirements.txt
 
 # 当容器启动时，默认执行bash命令
 CMD ["bash"]

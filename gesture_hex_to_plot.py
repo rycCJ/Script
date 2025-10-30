@@ -165,6 +165,7 @@ def parse_point_format_1_or_2(data_buffer, ext_info, format_type):
     return point_data
 
 # --- 帧解析主函数 ---
+
 def parse_frame(frame_data_buffer):
 
     """
@@ -369,8 +370,8 @@ def visualize_points(all_points_data, title="点云数据可视化"):
 
     plt.show()
 
-# --- 新增：逐帧数据变化的可视化函数 ---
-def visualize_frame_changes(frame_by_frame_data):
+# --- 新增：逐帧数据变化的可视化函数_根据一帧中跟功率最大的点 ---
+def visualize_frame_changes_absmax(frame_by_frame_data):
     """
     绘制每一帧的平均距离和平均角度随帧数的变化。
     :param frame_by_frame_data: 一个列表，列表中的每个元素都是代表一帧的点数据列表。
@@ -381,8 +382,10 @@ def visualize_frame_changes(frame_by_frame_data):
         return
 
     frame_numbers = []
-    avg_ranges = []
-    avg_angles = []
+    ranges_of_max_abs = []  # 存储abs最大值对应的range
+    angles_of_max_abs = []  # 存储abs最大值对应的angle  
+    # avg_ranges = []  #存储距离均值
+    # avg_angles = []  #存储角度均值
 
     # 遍历每一帧的数据
     for i, frame_points in enumerate(frame_by_frame_data):
@@ -390,50 +393,99 @@ def visualize_frame_changes(frame_by_frame_data):
         if not frame_points:
             continue
 
-        frame_numbers.append(i + 1) # 帧数从 1 开始
+        # 1. 找到 power_abs 值最大的那个数据点
+        # 使用 max() 函数和一个 lambda 表达式作为 key
+        # key=lambda p: p.get('power_abs', 0) 的意思是：对于 frame_points 中的每个点 p，
+        # 使用 p 的 'power_abs' 值（如果不存在则默认为0）来进行比较，从而找到最大的那个点。
+        point_with_max_abs = max(frame_points, key=lambda p: p.get('power_abs', 0))
 
-        # 计算当前帧的平均距离
-        current_frame_ranges = [p.get('range', 0) for p in frame_points]
-        avg_range = sum(current_frame_ranges) / len(current_frame_ranges)
-        avg_ranges.append(avg_range)
+        # 2. 从找到的这个点中提取 range 和 angle
+        target_range = point_with_max_abs.get('range', 0)
+        target_angle = point_with_max_abs.get('angle', 0)
+        
+        # 3. 将结果存入列表
+        frame_numbers.append(i + 1)  # 帧数从 1 开始
+        ranges_of_max_abs.append(target_range)
+        angles_of_max_abs.append(target_angle)
 
-        # 计算当前帧的平均角度
-        current_frame_angles = [p.get('angle', 0) for p in frame_points]
-        avg_angle = sum(current_frame_angles) / len(current_frame_angles)
-        avg_angles.append(avg_angle)
-
+    
     # 开始绘图
     # 创建一个包含两个子图的图窗
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
     # sharex=True 让两个子图共享同一个 X 轴（帧数）
 
     # 绘制第一个子图：平均距离 vs. 帧数
-    ax1.plot(frame_numbers, avg_ranges, marker='o', linestyle='-', color='b')
-    ax1.set_ylabel('平均距离 (cm)')
+    ax1.plot(frame_numbers, ranges_of_max_abs, marker='o', linestyle='-', color='b')
+    ax1.set_ylabel('距离 (cm)')
     ax1.set_title('每一帧的平均距离和角度变化')
     ax1.grid(True)
 
     # 绘制第二个子图：平均角度 vs. 帧数
-    ax2.plot(frame_numbers, avg_angles, marker='s', linestyle='--', color='r')
+    ax2.plot(frame_numbers, angles_of_max_abs, marker='s', linestyle='--', color='r')
     ax2.set_xlabel('帧数')
-    ax2.set_ylabel('平均角度 (度)')
+    ax2.set_ylabel('角度 (度)')
     ax2.grid(True)
 
     # 调整布局以防止标签重叠
     plt.tight_layout()
     # 显示图表
     plt.show()
+def visualize_frame_changes(frame_by_frame_data):
+    if not frame_by_frame_data:
+        print("没有逐帧数据可供可视化。")
+        return
+    all_points_frame_numbers = [] # 用作 X 轴
+    all_range_coords = []
+    all_angle_coords = []
+    all_power_coords = []
+    all_velocity_coords = []
 
+    frame_num = 1
+ # 遍历每一帧
+    for i,frame_points in enumerate(frame_by_frame_data) :
+
+        # 遍历当前帧中的每一个数据点
+        for point in frame_points:
+            # 安全地获取 range 和 angle，如果不存在则默认为0
+            target_range = point.get('range', 0)
+            target_angle = point.get('angle', 0)
+            target_velocity = point.get('velocity',0)
+            all_points_frame_numbers.append(frame_num)
+            all_range_coords.append(target_range)
+            all_angle_coords.append(target_angle)
+            frame_num += 1
+              
+    # 开始绘图
+    # 创建一个包含两个子图的图窗
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+    # sharex=True 让两个子图共享同一个 X 轴（帧数）
+
+    # 绘制第一个子图：平均距离 vs. 点数
+    ax1.plot(all_points_frame_numbers, all_range_coords,marker='o', alpha=0.6, color='b')
+    ax1.set_ylabel('距离 (cm)')
+    ax1.set_title('每一帧的平均距离和角度变化')
+    ax1.grid(True)
+
+    # 绘制第二个子图：平均角度 vs. 帧数
+    ax2.plot(all_points_frame_numbers, all_angle_coords, marker='o',  alpha=0.6, color='r')
+    ax2.set_xlabel('帧数')
+    ax2.set_ylabel('角度 (度)')
+    ax2.grid(True)
+
+    # 调整布局以防止标签重叠
+    plt.tight_layout()
+    # 显示图表
+    plt.show()
 # --- 数据保存函数 ---
-"""
-# range (浮点数): 点的径向距离，单位为米。
-# velocity (浮点数): 点的径向速度，单位为米/秒。
-# angle (浮点数): 点的方位角，单位为度。
-# power_abs (浮点数): 点的反射强度或功率，一个归一化后的浮点值。
-# x (浮点数): 点在笛卡尔坐标系中的 X 坐标，单位为米。
-# y (浮点数): 点在笛卡尔坐标系中的 Y 坐标，单位为米。
-# z (浮点数): 点在笛卡尔坐标系中的 Z 坐标，单位为米。在你的当前代码中，z 坐标被简化地设置为 0.0，这意味着点被假定在一个二维平面上。
-"""
+    """
+    # range (浮点数): 点的径向距离，单位为米。
+    # velocity (浮点数): 点的径向速度，单位为米/秒。
+    # angle (浮点数): 点的方位角，单位为度。
+    # power_abs (浮点数): 点的反射强度或功率，一个归一化后的浮点值。
+    # x (浮点数): 点在笛卡尔坐标系中的 X 坐标，单位为米。
+    # y (浮点数): 点在笛卡尔坐标系中的 Y 坐标，单位为米。
+    # z (浮点数): 点在笛卡尔坐标系中的 Z 坐标，单位为米。在你的当前代码中，z 坐标被简化地设置为 0.0，这意味着点被假定在一个二维平面上。
+    """
 def save_points_to_csv(points_data, file_path="parsed_points.csv"):
     """
     将解析后的点数据保存到 CSV 文件。
@@ -604,8 +656,8 @@ def main(txt_file_path,output_csv_path):
 if __name__ == "__main__":
 
         # 示例路径，请根据您的实际情况修改！
-    your_actual_txt_file_path = 'D:/Data/Origin/jiaofan_15°_1.5m_1.txt' 
-    main(your_actual_txt_file_path,"D:/Data/CSV/jiaofan_15°_1.5m_1.csv") # 运行程序，使用虚拟数据文件进行测试
+    your_actual_txt_file_path = 'D:/Data/Origin/wave0_10.txt' 
+    main(your_actual_txt_file_path,"D:/Data/CSV/wave0_10.csv") # 运行程序，使用虚拟数据文件进行测试
     # --- 【重要修改处 1】 ---
     # 请将这里的 'your_data.txt' 替换为您的实际 TXT 文件路径。
     # 例如：
